@@ -1,0 +1,6 @@
+numpy
+pytest
+polars
+pandas
+tensorflow
+tensorflow_datasets
