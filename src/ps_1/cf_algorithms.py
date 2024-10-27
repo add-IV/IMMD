@@ -68,9 +68,9 @@ def rate_all_items(orig_utility_matrix, user_index, neighborhood_size):
         ]
         if best_among_who_rated.size > 0:
             # Compute the rating of the item
-            rating_of_item = np.mean(
-                orig_utility_matrix[item_index, best_among_who_rated]
-            )
+            rating_of_item = np.sum(
+                orig_utility_matrix[item_index, best_among_who_rated] * similarities[best_among_who_rated]
+            ) / np.sum(np.abs(similarities[best_among_who_rated]))
         else:
             rating_of_item = np.nan
         print(

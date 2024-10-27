@@ -25,7 +25,7 @@ def center_matrix_and_store_non_nan(matrix, axis=0):
     means = np.nanmean(matrix, axis=axis)
     # Subtract the mean from each axis
     matrix_centered = matrix - means
-    matrix_non_nan = np.isnan(matrix)
+    matrix_non_nan = ~np.isnan(matrix)
     return (
         sp.csr_matrix(np.nan_to_num(matrix_centered)),
         means,
@@ -71,13 +71,14 @@ def rate_all_items(
     user_col = utility_matrix[:, user_index]
     # Compute the cosine similarity between the user and all other users
     similarities = fast_centered_cosine_sim(utility_matrix, user_col)
-    # turn into coo matrix since filtering and sorting is easier
+    print(similarities)
+    # turn into numpy matrix since filtering and sorting is easier
     similarities = similarities.tocoo()
 
     def rate_one_item(item_index):
         # If the user has already rated the item, return the rating
-        if not matrix_non_nan[item_index, user_index]:
-            return utility_matrix[item_index, user_index]
+        if matrix_non_nan[item_index, user_index]:
+            return utility_matrix[item_index, user_index] + means[user_index]
 
         # Find the indices of users who rated the item
         condition = utility_matrix[item_index, :] != 0
@@ -88,15 +89,24 @@ def rate_all_items(
         # Select top neighborhood_size of them
         best_among_who_rated = best_among_who_rated[:neighborhood_size]
         # Convert the indices back to the original utility matrix indices
-        best_among_who_rated_indices = np.array([user[1] for user in best_among_who_rated])
+        best_among_who_rated_indices = np.array(
+            [user[1] for user in best_among_who_rated]
+        )
+        similarities_for_best = np.array(
+            [user[0] for user in best_among_who_rated]
+        ).ravel()
         # Retain only those indices where the similarity is not nan
         # already removed nans from similarities
         if len(best_among_who_rated_indices) > 0:
             # Compute the rating of the item
-            rating_of_item = np.mean(
-                utility_matrix[item_index, best_among_who_rated_indices]
-                + means[best_among_who_rated_indices]
-            )
+            print(utility_matrix[item_index, best_among_who_rated_indices] + means[best_among_who_rated_indices])
+            print(similarities_for_best)
+            rating_of_item = np.sum(
+                similarities_for_best
+                @ (
+                    utility_matrix[item_index, best_among_who_rated_indices] + means[best_among_who_rated_indices]
+                ).reshape(-1, 1)
+            ) / np.sum(np.abs(similarities_for_best))
         else:
             rating_of_item = np.nan
         print(
@@ -111,8 +121,8 @@ def rate_all_items(
     return ratings
 
 
-def centered_cosine_sim(u: sp.csr_array, v: sp.csr_array) -> float:
-    return u @ v / (sp.linalg.norm(u) * sp.linalg.norm(v))
+def centered_cosine_sim(u: sp.csr_matrix, v: sp.csr_matrix) -> float:
+    return u.dot(v.T) / (sp.linalg.norm(u) * sp.linalg.norm(v))
 
 
 def fast_centered_cosine_sim(
