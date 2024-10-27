@@ -117,7 +117,7 @@ class TestExercise3:
         assert um_lecture.nnz == 19
         assert matrix_non_nan.nnz == 19
 
-    def test_big_matrix_size_improvements(self, tmp_path):
+    def test_big_matrix_size_improvements(self):
         # test works but is slow, sparse version has less than 1 MB
         # return
         import dataclasses
@@ -128,9 +128,9 @@ class TestExercise3:
             dowload_url: str = (
                 "https://files.grouplens.org/datasets/movielens/ml-25m.zip"
             )
-            download_dir: str = tmp_path
-            unzipped_dir: str = download_dir / "ml-25m/"
-            file_path: str = download_dir / "ml-25m/ratings.csv"
+            download_dir: str = "./movielens"
+            unzipped_dir: str = download_dir + "/ml-25m/"
+            file_path: str = download_dir + "/ml-25m/ratings.csv"
 
         um_traditional = get_um_by_name_data_util(config, "movielens")
         um_lecture, means, matrix_non_nan = get_um_by_name(config, "movielens")
@@ -141,8 +141,8 @@ class TestExercise3:
 
         size_traditional = get_size_in_mb(um_traditional)
 
-        LOGGER.info(f"Size Non Sparse: {size_traditional:.2f} MB")
-        LOGGER.info(f"Size Sparse: {size_lecture + size_means + size_matrix_non_nan:.2f} MB")
+        LOGGER.info("Size Non Sparse: %.2f MB", size_traditional)
+        LOGGER.info("Size Sparse: %.2f MB", size_lecture + size_means + size_matrix_non_nan)
 
         assert size_lecture < size_traditional
         assert size_lecture + size_means + size_matrix_non_nan < size_traditional

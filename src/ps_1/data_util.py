@@ -168,18 +168,18 @@ def split_train_valid_test_tf(ratings_tf, split_ratios):
 
 if __name__ == '__main__':
     # # Test loading the utility matrix for cf
-    # from config import ConfigCf
+    from config import ConfigCf
     #
-    # um_movielens = get_um_by_name(ConfigCf, "movielens")
-    # um_lecture = get_um_by_name(ConfigCf, "lecture_1")
+    um_movielens = get_um_by_name(ConfigCf, "movielens")
+    um_lecture = get_um_by_name(ConfigCf, "lecture_1")
 
     # Test the TF dataset loading
-    from config import ConfigLf
+    #from config import ConfigLf
 
-    ratings_tf, user_ids_voc, movie_ids_voc = load_movielens_tf(ConfigLf)
+    #ratings_tf, user_ids_voc, movie_ids_voc = load_movielens_tf(ConfigLf)
 
     # Split the dataset
-    train_ds, valid_ds, test_ds = split_train_valid_test_tf(ratings_tf, ConfigLf.split_ratios)
-    print_sample_of_tf_dataset(train_ds, "Training:")
-    print_sample_of_tf_dataset(valid_ds, "Validation:")
-    print_sample_of_tf_dataset(test_ds, "Test:")
+    #train_ds, valid_ds, test_ds = split_train_valid_test_tf(ratings_tf, ConfigLf.split_ratios)
+    #print_sample_of_tf_dataset(train_ds, "Training:")
+    #print_sample_of_tf_dataset(valid_ds, "Validation:")
+    #print_sample_of_tf_dataset(test_ds, "Test:")
