@@ -1,13 +1,19 @@
 import pytest
 import numpy as np
 import scipy.sparse as sp
+import logging
 
 from ps_1.cf_algorithms import fast_cosine_sim, cosine_sim, center_and_nan_to_zero
-from ps_1.data_util import get_um_by_name
+from ps_1.cf_algorithms import rate_all_items as rate_all_items_non_sparse
+from ps_1.data_util import get_um_by_name as get_um_by_name_data_util
+from ps_1.sparse_data_util import get_um_by_name, get_size_in_mb
 from ps_1.sparse_algorithms import (
     centered_cosine_sim,
     fast_centered_cosine_sim,
+    rate_all_items,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 def test_setup():
@@ -45,9 +51,10 @@ class TestExercise2:
         for i in range(k):
             j = k - 1 - i
             assert vector_x[i] == vector_y[j]
-        sparse_x = sp.csr_matrix(vector_x)
-        sparse_y = sp.csr_matrix(vector_y)
-        cosine_sim = centered_cosine_sim(sparse_x, sparse_y)
+
+        sparse_x = sp.csr_matrix(np.asmatrix(vector_x))
+        sparse_y = sp.csr_matrix(np.asmatrix(vector_y))
+        cosine_sim = centered_cosine_sim(sparse_x, sparse_y).todense()
         numpy_cosine_sim = np.dot(vector_x, vector_y) / (
             np.linalg.norm(vector_x) * np.linalg.norm(vector_y)
         )
@@ -69,20 +76,20 @@ class TestExercise2:
             else:
                 assert vector_x[i] == vector_y[j]
 
-        sparse_x = sp.csr_matrix(vector_x)
-        sparse_y = sp.csr_matrix(vector_y)
+        sparse_x = sp.csr_matrix(np.asmatrix(vector_x))
+        sparse_y = sp.csr_matrix(np.asmatrix(vector_y))
 
         assert sparse_x.nnz == 50
         assert sparse_y.nnz == 50
 
-        cosine_sim = centered_cosine_sim(sparse_x, sparse_y)
+        cosine_sim = centered_cosine_sim(sparse_x, sparse_y).todense()
         numpy_cosine_sim = np.dot(vector_x, vector_y) / (
             np.linalg.norm(vector_x) * np.linalg.norm(vector_y)
         )
         assert np.allclose(cosine_sim, numpy_cosine_sim)
 
     def test_centered_fast_cosine_sim(self):
-        um_lecture = get_um_by_name(None, "lecture_1")
+        um_lecture = get_um_by_name_data_util(None, "lecture_1")
         clean_matrix = center_and_nan_to_zero(um_lecture)
         user_col = clean_matrix[:, 4]
 
@@ -99,3 +106,60 @@ class TestExercise2:
         similarities = similarities.todense().reshape(-1)
 
         assert np.allclose(similarities, similarities_numpy)
+
+
+class TestExercise3:
+    def test_shrinking_um(self):
+        um_lecture, means, matrix_non_nan = get_um_by_name(None, "lecture_1")
+        assert um_lecture.shape == (6, 6)
+        assert means.shape == (6,)
+        assert matrix_non_nan.shape == (6, 6)
+        assert um_lecture.nnz == 19
+        assert matrix_non_nan.nnz == 19
+
+    def test_big_matrix_size_improvements(self, tmp_path):
+        # test works but is slow, sparse version has less than 1 MB
+        # return
+        import dataclasses
+
+        @dataclasses.dataclass
+        class config:
+            max_rows: int = int(1e5)
+            dowload_url: str = (
+                "https://files.grouplens.org/datasets/movielens/ml-25m.zip"
+            )
+            download_dir: str = tmp_path
+            unzipped_dir: str = download_dir / "ml-25m/"
+            file_path: str = download_dir / "ml-25m/ratings.csv"
+
+        um_traditional = get_um_by_name_data_util(config, "movielens")
+        um_lecture, means, matrix_non_nan = get_um_by_name(config, "movielens")
+
+        size_lecture = get_size_in_mb(um_lecture)
+        size_means = get_size_in_mb(means)
+        size_matrix_non_nan = get_size_in_mb(matrix_non_nan)
+
+        size_traditional = get_size_in_mb(um_traditional)
+
+        LOGGER.info(f"Size Non Sparse: {size_traditional:.2f} MB")
+        LOGGER.info(f"Size Sparse: {size_lecture + size_means + size_matrix_non_nan:.2f} MB")
+
+        assert size_lecture < size_traditional
+        assert size_lecture + size_means + size_matrix_non_nan < size_traditional
+
+    def test_sparse_ratings(self):
+        um_lecture, means, matrix_non_nan = get_um_by_name(None, "lecture_1")
+        user_index = 4
+        neighborhood_size = 2
+        ratings = rate_all_items(
+            um_lecture, user_index, neighborhood_size, means, matrix_non_nan
+        )
+
+        assert len(ratings) == um_lecture.shape[0]
+
+        non_sparse_matrix = get_um_by_name_data_util(None, "lecture_1")
+
+
+        ratings2 = rate_all_items_non_sparse(non_sparse_matrix, user_index, neighborhood_size)
+
+        assert np.allclose(ratings, ratings2)
