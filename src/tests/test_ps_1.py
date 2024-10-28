@@ -6,11 +6,12 @@ import logging
 from ps_1.cf_algorithms import fast_cosine_sim, cosine_sim, center_and_nan_to_zero
 from ps_1.cf_algorithms import rate_all_items as rate_all_items_non_sparse
 from ps_1.data_util import get_um_by_name as get_um_by_name_data_util
-from ps_1.sparse_data_util import get_um_by_name, get_size_in_mb
+from ps_1.sparse_data_util import get_um_by_name, get_size_in_mb, create_shelves_for_dataset
 from ps_1.sparse_algorithms import (
     centered_cosine_sim,
     fast_centered_cosine_sim,
     rate_all_items,
+    rate_one_item_sparse
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -18,6 +19,18 @@ LOGGER = logging.getLogger(__name__)
 
 def test_setup():
     assert 1 == 1
+
+import dataclasses
+# Configurations for collaborative filtering
+@dataclasses.dataclass
+class ConfigSparseCf:
+    max_rows: int = int(2.5e6)
+    download_dir: str = "./movielens/"
+    unzipped_dir: str = download_dir + "ml-25m/"
+    dowload_url: str = "https://files.grouplens.org/datasets/movielens/ml-25m.zip"
+    file_path: str = download_dir + "ml-25m/ratings.csv"
+    shelve_path: str = download_dir + "ml-25m/shelve"
+    batch_size: int = 1000000
 
 
 class TestExercise2:
@@ -163,3 +176,19 @@ class TestExercise3:
         ratings2 = rate_all_items_non_sparse(non_sparse_matrix, user_index, neighborhood_size)
 
         assert np.allclose(ratings, ratings2)
+
+
+class TestExercise5:
+    def test_first_user(self):
+        user_id = 828
+        movie_id = 11
+
+        config = ConfigSparseCf()
+
+        rated_by_shelve_path, user_col_shelve_path = create_shelves_for_dataset(
+            config, "movielens"
+        )
+
+        rating = rate_one_item_sparse(user_id, movie_id, config.shelve_path)
+
+        assert  rating == 4.0

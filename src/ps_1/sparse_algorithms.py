@@ -22,6 +22,10 @@ def center_matrix_and_store_non_nan(matrix, axis=0):
     """Center the matrix and replace nan values with zeros"""
     # Compute along axis 'axis' the mean of non-nan values
     # E.g. axis=0: mean of each column, since op is along rows (axis=0)
+
+    if isinstance(matrix, sp.coo_matrix):
+        matrix = matrix.todense()
+
     means = np.nanmean(matrix, axis=axis)
     # Subtract the mean from each axis
     matrix_centered = matrix - means
@@ -59,7 +63,12 @@ def argsort_coo_matrix(matrix):
 
 # Implement the CF from the lecture 1
 def rate_all_items(
-    utility_matrix: sp.csr_matrix, user_index, neighborhood_size, means, matrix_non_nan
+    utility_matrix: sp.csr_matrix,
+    user_index,
+    neighborhood_size,
+    means,
+    matrix_non_nan,
+    rate_single_item=None,
 ):
     print(
         f"\n>>> CF computation for UM w/ shape: "
@@ -99,12 +108,16 @@ def rate_all_items(
         # already removed nans from similarities
         if len(best_among_who_rated_indices) > 0:
             # Compute the rating of the item
-            print(utility_matrix[item_index, best_among_who_rated_indices] + means[best_among_who_rated_indices])
+            print(
+                utility_matrix[item_index, best_among_who_rated_indices]
+                + means[best_among_who_rated_indices]
+            )
             print(similarities_for_best)
             rating_of_item = np.sum(
                 similarities_for_best
                 @ (
-                    utility_matrix[item_index, best_among_who_rated_indices] + means[best_among_who_rated_indices]
+                    utility_matrix[item_index, best_among_who_rated_indices]
+                    + means[best_among_who_rated_indices]
                 ).reshape(-1, 1)
             ) / np.sum(np.abs(similarities_for_best))
         else:
@@ -116,9 +129,70 @@ def rate_all_items(
 
     num_items = utility_matrix.shape[0]
 
+    if rate_single_item is not None:
+        return rate_one_item(rate_single_item)
+
     # Get all ratings
     ratings = list(map(rate_one_item, range(num_items)))
     return ratings
+
+
+def rate_one_item_sparse(user_id, movie_id, shelve_prefix):
+    """Compute the rating of a single item"""
+
+    import shelve
+
+    with shelve.open(shelve_prefix + "_user_col", flag="r") as user_col:
+        if str(user_id) in user_col:
+            user_col = user_col[str(user_id)]
+        else:
+            raise ValueError(f"User {user_id} not found in the user_col shelve")
+
+    relevant_movies = user_col.col
+
+    # Load the movie matrix
+    with shelve.open(shelve_prefix + "_rated_by", flag="r") as rated_by:
+        if str(movie_id) in rated_by:
+            movie_rated_by = rated_by[str(movie_id)]
+        else:
+            raise ValueError(f"Movie {movie_id} not found in the rated_by shelve")
+
+    total_row, total_col, total_data = [], [], []
+
+    # load relevant user columns
+    with shelve.open(shelve_prefix + "_user_col", flag="r") as user_col:
+        for user_id in movie_rated_by:
+            if str(user_id) in user_col:
+                curr_user_col = user_col[str(user_id)]
+            else:
+                raise ValueError(f"User {user_id} not found in the user_col shelve")
+            curr_user_col, curr_user_row, curr_user_data = (
+                curr_user_col.col,
+                curr_user_col.row,
+                curr_user_col.data,
+            )
+            for i in range(len(curr_user_col)):
+                if curr_user_col[i] not in relevant_movies:
+                    continue
+                total_col.append(user_id)
+                total_row.append(curr_user_col[i])
+                total_data.append(curr_user_data[i])
+
+    total_matrix = sp.coo_matrix((total_data, (total_row, total_col)))
+
+    assert type(total_matrix) == sp.coo_matrix
+
+    # Compute the rating
+
+    um_matrix, means, matrix_non_nan = center_matrix_and_store_non_nan(total_matrix)
+
+    if means.ndim == 2:
+        means = means.T
+
+
+    return rate_all_items(
+        um_matrix, user_id, 4, means, matrix_non_nan, rate_single_item=movie_id
+    )
 
 
 def centered_cosine_sim(u: sp.csr_matrix, v: sp.csr_matrix) -> float:
